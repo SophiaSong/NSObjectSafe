@@ -9,6 +9,7 @@
 #import "NSObjectSafe.h"
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import <UIKit/UIKit.h>
 
 #if __has_feature(objc_arc)
 #error This file must be compiled with MRC. Use -fno-objc-arc flag.
@@ -37,7 +38,7 @@ NSString *const NSSafeNotification = @"_NSSafeNotification_";
 
 #define SFAssert(condition, ...) \
 if (!(condition)){ SFLog(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);} \
-NSAssert(condition, @"%@", __VA_ARGS__);
+if (DEBUG) NSAssert(condition, @"%@", __VA_ARGS__);
 
 void SFLog(const char* file, const char* func, int line, NSString* fmt, ...)
 {
@@ -492,6 +493,7 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
         return nil;
     }
 }
+
 - (void)hookEnumerateAttribute:(NSString *)attrName inRange:(NSRange)range options:(NSAttributedStringEnumerationOptions)opts usingBlock:(void (^)(id _Nullable, NSRange, BOOL * _Nonnull))block
 {
     @synchronized (self) {
@@ -722,38 +724,55 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
         /* 类方法不用在NSMutableArray里再swizz一次 */
         [NSArray swizzleClassMethod:@selector(arrayWithObject:) withMethod:@selector(hookArrayWithObject:)];
         [NSArray swizzleClassMethod:@selector(arrayWithObjects:count:) withMethod:@selector(hookArrayWithObjects:count:)];
-        
+       [NSArray swizzleClassMethod:@selector(arrayWithObjects:count:) withMethod:@selector(hookArrayWithObjects:count:)];
+
+       swizzleInstanceMethod(NSClassFromString(@"__NSPlaceholderArray"), @selector(initWithObjects:count:), @selector(hookInitWithObjects:count:));
+
         /* 没内容类型是__NSArray0 */
         swizzleInstanceMethod(NSClassFromString(@"__NSArray0"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArray0"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArray0"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
-        
+
+       swizzleInstanceMethod(NSClassFromString(@"__NSArray0"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArray0"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
+
         /* 有内容obj类型才是__NSArrayI */
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayI"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayI"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
         
         /* 有内容obj类型才是__NSArrayI_Transfer */
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI_Transfer"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI_Transfer"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayI_Transfer"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayI_Transfer"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayI_Transfer"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
         
         /* iOS10 以上，单个内容类型是__NSSingleObjectArrayI */
         swizzleInstanceMethod(NSClassFromString(@"__NSSingleObjectArrayI"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSSingleObjectArrayI"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSSingleObjectArrayI"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
-        
+
+       swizzleInstanceMethod(NSClassFromString(@"__NSSingleObjectArrayI"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSSingleObjectArrayI"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
         /* __NSFrozenArrayM */
         swizzleInstanceMethod(NSClassFromString(@"__NSFrozenArrayM"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSFrozenArrayM"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSFrozenArrayM"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSFrozenArrayM"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSFrozenArrayM"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
         
         /* __NSArrayReversed */
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayReversed"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayReversed"), @selector(subarrayWithRange:), @selector(hookSubarrayWithRange:));
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayReversed"), @selector(objectAtIndexedSubscript:), @selector(hookObjectAtIndexedSubscript:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayReversed"), @selector(arrayByAddingObject:), @selector(hookArrayByAddingObject:));
+       swizzleInstanceMethod(NSClassFromString(@"__NSArrayReversed"), @selector(arrayByAddingObjectsFromArray:), @selector(hookArrayByAddingObjectsFromArray:));
     });
 }
+
 + (instancetype) hookArrayWithObject:(id)anObject
 {
     if (anObject) {
@@ -761,6 +780,55 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
     }
     SFAssert(NO, @"NSArray invalid args hookArrayWithObject:[%@]", anObject);
     return nil;
+}
+
+//数组初始化 如 a = [b, c], 其中有nil
+- (instancetype)hookInitWithObjects:(id *)objects count:(NSUInteger)count {
+
+   id safeObjects[count];
+   NSUInteger j = 0;
+   for (NSUInteger i = 0; i < count; i++) {
+      id obj = objects[i];
+      if (!obj) {
+
+         SFAssert(NO, @"NSArray invalid args hookInitWithObjects:count:");
+         continue;
+      }
+      safeObjects[j] = obj;
+      j++;
+   }
+
+   return [self hookInitWithObjects:safeObjects count:j];
+}
+
+- (id)hookArrayByAddingObject:(id)value {
+
+   if (value) {
+
+     return [self hookArrayByAddingObject:value];
+   }
+
+   SFAssert(NO, @"NSArray invalid args hookArrayWithookArrayByAddingObject:[%@]", value);
+
+   return self;
+}
+
+- (id)hookArrayByAddingObjectsFromArray:(id)array {
+
+   if ([array isKindOfClass:[NSArray class]] && array) {
+
+      if ([array count] > 0) {
+
+        return [self hookArrayByAddingObjectsFromArray:array];
+      } else {
+
+         return self;
+      }
+   }
+
+   SFAssert(NO, @"NSArray invalid args hookArrayByAddingObjectsFromArray");
+
+   return self;
 }
 
 - (id) hookObjectAtIndex:(NSUInteger)index {
@@ -814,6 +882,7 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
 {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+
         
         /* __NSArrayM */
         swizzleInstanceMethod(NSClassFromString(@"__NSArrayM"), @selector(objectAtIndex:), @selector(hookObjectAtIndex:));
@@ -838,6 +907,7 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
         swizzleInstanceMethod(NSClassFromString(@"__NSCFArray"), @selector(removeObjectsInRange:), @selector(hookRemoveObjectsInRange:));
     });
 }
+
 - (void) hookAddObject:(id)anObject {
     @synchronized (self) {
         if (anObject) {
@@ -1340,4 +1410,76 @@ void swizzleInstanceMethod(Class cls, SEL origSelector, SEL newSelector)
         SFAssert(NO, @"NSCache invalid args hookSetObject:[%@] forKey:[%@] cost:[%@]", obj, key, @(g));
     }
 }
+
 @end
+
+#pragma mark- UITableView
+
+@implementation UITableView (SafeScroll)
+
++ (void)load
+{
+   static dispatch_once_t onceToken;
+   dispatch_once(&onceToken, ^{
+      swizzleInstanceMethod([UITableView class], @selector(scrollToRowAtIndexPath:atScrollPosition:animated:), @selector(hookScrollToRowAtIndexPath:atScrollPosition:animated:));
+   });
+}
+
+- (void)hookScrollToRowAtIndexPath:(NSIndexPath *)indexPath atScrollPosition:(UITableViewScrollPosition)scrollPosition animated:(BOOL)animated {
+
+   if ([self isAValidIndexPath:indexPath]) {
+
+      [self hookScrollToRowAtIndexPath:indexPath atScrollPosition:scrollPosition animated:animated];
+   } else {
+
+      SFAssert(NO, @"UITableView invalid IndexPath");
+   }
+}
+
+- (BOOL)isAValidIndexPath:(NSIndexPath *)indexPath {
+
+   if (indexPath && indexPath.section < [self numberOfSections]) {
+
+      return indexPath.row < [self numberOfRowsInSection:indexPath.section];
+   }
+
+   return NO;
+}
+
+@end
+
+#pragma mark- UICollectionView
+
+@implementation UICollectionView (SafeScroll)
+
++ (void)load {
+
+   static dispatch_once_t onceToken;
+   dispatch_once(&onceToken, ^{
+      swizzleInstanceMethod([UICollectionView class], @selector(scrollToItemAtIndexPath:atScrollPosition:animated:), @selector(hookScrollToItemAtIndexPath:atScrollPosition:animated:));
+   });
+}
+
+- (void)hookScrollToItemAtIndexPath:(NSIndexPath *)indexPath atScrollPosition:(UICollectionViewScrollPosition)scrollPosition animated:(BOOL)animated {
+
+   if ([self isValidIndex:indexPath]) {
+
+      [self hookScrollToItemAtIndexPath:indexPath atScrollPosition:scrollPosition animated:animated];
+   } else {
+
+      SFAssert(NO, @"UICollectionView invalid IndexPath");
+   }
+}
+
+- (BOOL)isValidIndex:(NSIndexPath *)index {
+
+   if (index && index.section < [self numberOfSections]) {
+
+      return index.row < [self numberOfItemsInSection:index.section];
+   }
+
+   return NO;
+}
+
+@end
+
